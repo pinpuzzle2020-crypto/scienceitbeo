@@ -1,14 +1,62 @@
 "use client"
 
 import { useState } from "react"
-import { MapPin, Phone, Gift } from "lucide-react"
+import { MapPin, Phone, Gift, Loader2, CheckCircle2, AlertCircle } from "lucide-react"
 
 export function ContactSection() {
-  const [submitted, setSubmitted] = useState(false)
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle")
+  const [errorMessage, setErrorMessage] = useState("")
 
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    setSubmitted(true)
+    setErrorMessage("")
+
+    const form = e.currentTarget
+    const formData = new FormData(form)
+
+    const name = formData.get("name") as string
+    const phone = formData.get("phone") as string
+    const grade = formData.get("grade") as string
+    const message = formData.get("message") as string
+
+    // 클라이언트 유효성 검사
+    if (!name.trim()) {
+      setErrorMessage("학부모 성함을 입력해 주세요.")
+      return
+    }
+    if (!phone.trim()) {
+      setErrorMessage("연락처를 입력해 주세요.")
+      return
+    }
+    if (!grade) {
+      setErrorMessage("자녀 학년을 선택해 주세요.")
+      return
+    }
+
+    setStatus("loading")
+
+    try {
+      const response = await fetch("/api/consultation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, phone, grade, message }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "서버 오류가 발생했습니다.")
+      }
+
+      setStatus("success")
+    } catch (err) {
+      setStatus("error")
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : "상담 예약 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
+      )
+    }
   }
 
   return (
@@ -70,17 +118,25 @@ export function ContactSection() {
           </div>
 
           <div className="rounded-lg border border-border bg-card p-8 lg:p-10">
-            {submitted ? (
+            {status === "success" ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-                  <Phone className="h-6 w-6 text-primary" />
+                  <CheckCircle2 className="h-6 w-6 text-primary" />
                 </div>
                 <h3 className="mt-4 text-lg font-bold text-card-foreground">
                   상담 예약이 완료되었습니다
                 </h3>
                 <p className="mt-2 text-sm text-muted-foreground">
+                  입력하신 정보가 정상적으로 접수되었습니다.
+                  <br />
                   빠른 시일 내에 연락드리겠습니다.
                 </p>
+                <button
+                  onClick={() => setStatus("idle")}
+                  className="mt-6 text-sm font-medium text-primary transition-opacity hover:opacity-80"
+                >
+                  추가 상담 예약하기
+                </button>
               </div>
             ) : (
               <>
@@ -94,35 +150,44 @@ export function ContactSection() {
                 <form className="mt-8 flex flex-col gap-5" onSubmit={handleSubmit}>
                   <div className="flex flex-col gap-2">
                     <label htmlFor="name" className="text-sm font-medium text-foreground">
-                      학부모 성함
+                      학부모 성함 <span className="text-destructive">*</span>
                     </label>
                     <input
                       id="name"
+                      name="name"
                       type="text"
                       placeholder="홍길동"
-                      className="rounded-md border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring"
+                      required
+                      disabled={status === "loading"}
+                      className="rounded-md border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                     />
                   </div>
 
                   <div className="flex flex-col gap-2">
                     <label htmlFor="phone" className="text-sm font-medium text-foreground">
-                      연락처
+                      연락처 <span className="text-destructive">*</span>
                     </label>
                     <input
                       id="phone"
+                      name="phone"
                       type="tel"
                       placeholder="010-0000-0000"
-                      className="rounded-md border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring"
+                      required
+                      disabled={status === "loading"}
+                      className="rounded-md border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                     />
                   </div>
 
                   <div className="flex flex-col gap-2">
                     <label htmlFor="grade" className="text-sm font-medium text-foreground">
-                      자녀 학년
+                      자녀 학년 <span className="text-destructive">*</span>
                     </label>
                     <select
                       id="grade"
-                      className="rounded-md border border-input bg-background px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring"
+                      name="grade"
+                      required
+                      disabled={status === "loading"}
+                      className="rounded-md border border-input bg-background px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                       defaultValue=""
                     >
                       <option value="" disabled>
@@ -143,17 +208,37 @@ export function ContactSection() {
                     </label>
                     <textarea
                       id="message"
+                      name="message"
                       rows={3}
                       placeholder="궁금한 점을 자유롭게 적어주세요."
-                      className="resize-none rounded-md border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring"
+                      disabled={status === "loading"}
+                      className="resize-none rounded-md border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                     />
                   </div>
 
+                  {/* 에러 메시지 */}
+                  {(status === "error" || errorMessage) && (
+                    <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3">
+                      <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-destructive" />
+                      <p className="text-sm text-destructive">
+                        {errorMessage || "오류가 발생했습니다. 다시 시도해 주세요."}
+                      </p>
+                    </div>
+                  )}
+
                   <button
                     type="submit"
-                    className="mt-2 rounded-md bg-primary px-8 py-3.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                    disabled={status === "loading"}
+                    className="mt-2 flex items-center justify-center gap-2 rounded-md bg-primary px-8 py-3.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    상담 예약하기
+                    {status === "loading" ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        접수 중...
+                      </>
+                    ) : (
+                      "상담 예약하기"
+                    )}
                   </button>
                 </form>
               </>
